@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: 2025 Luca Michel <luca.michel@hes-so.ch>
+#
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+#
+[project]
+name = "oberon0-runtime"
+version = "0.1.0"
+description = "Oberon0 runtime for WASM"
+authors = [
+    {name = "Luca Michel",email = "luca.michel@hes-so.ch"}
+]
+license = { text = "Apache-2.0 OR MIT" }
+readme = "README.md"
+requires-python = ">=3.12,<4.0"
+dependencies = [
+    "wasmtime (>=30.0.0,<31.0.0)",
+    "pydantic (>=2.10.6,<3.0.0)",
+    "typer (>=0.15.1,<0.16.0)",
+    "loguru (>=0.7.3,<0.8.0)",
+    "rich (>=13.9.4,<14.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.group.dev.dependencies]
+black = "^25.1.0"
+ruff = "^0.9.7"
+
+
+[tool.poetry.group.test.dependencies]
+pytest = "^8.3.4"
+
+[project.scripts]
+oberon0-rt = "oberon0_runtime:app"
+
+[tool.ruff]
+lint.select = ["E", "F", "B", "Q", "N", "I", "UP", "PL", "RUF", "C90"]
