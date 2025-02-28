@@ -11,7 +11,7 @@
     (import "env" "memory" (memory 1))
     (import "env" "__stack_pointer" (global $sp (mut i32)))
   (func $add
-    ;; Free stack
+    ;; Allocate stack
     global.get $sp
     i32.const 12
     i32.sub
