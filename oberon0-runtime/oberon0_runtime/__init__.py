@@ -69,7 +69,9 @@ def read_int(address: int):
         print("[bold red]Error: no more input[/bold red]")
         raise typer.Exit(code=ReturnCode.NO_MORE_INPUT.value) from None
 
-    context.memory.write(context.store, val.to_bytes(INT32_SIZE, "little"), address)
+    context.memory.write(
+        context.store, val.to_bytes(INT32_SIZE, "little", signed=True), address
+    )
 
 
 def eot_() -> int:
@@ -100,7 +102,7 @@ def write_ln():
 
 
 # Main function
-@app.command()
+@app.command(context_settings={"ignore_unknown_options": True})
 def main(
     wasm_file: Annotated[Path, typer.Argument()],
     command: Annotated[str, typer.Argument()],
