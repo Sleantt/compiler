@@ -26,3 +26,4 @@
 
 # Files to compile
 *.ebnf
+.ruff_cache
