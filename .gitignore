@@ -21,3 +21,8 @@
 
 .venv
 /poetry.toml
+
+*.wasm
+
+# Files to compile
+*.ebnf

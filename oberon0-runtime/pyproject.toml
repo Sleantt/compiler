@@ -35,6 +35,7 @@ pytest = "^8.3.4"
 
 [project.scripts]
 oberon0-rt = "oberon0_runtime:app"
+ebnf-compiler = "ebnf_compiler:app"
 
 [tool.ruff]
 lint.select = ["E", "F", "B", "Q", "N", "I", "UP", "PL", "RUF", "C90"]
