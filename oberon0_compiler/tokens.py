@@ -9,7 +9,6 @@ Oberon-0 tokens
 from enum import Enum
 
 _tokens = [
-    ("NULL", "null"),
     ("TIMES", "*"),
     ("DIV", "DIV"),
     ("MOD", "MOD"),

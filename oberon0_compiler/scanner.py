@@ -14,7 +14,7 @@ from pathlib import Path
 from loguru import logger
 from pydantic import BaseModel
 
-from oberon0_compiler.token import Token
+from oberon0_compiler.tokens import Token, token_str
 
 
 class Scanner(BaseModel):
@@ -87,6 +87,56 @@ class Scanner(BaseModel):
             self._text_line = self._text_line[1:]
             self._col_no += 1
 
+    def token(self) -> tuple[Token, str]:
+        current: str = self._ch
+        self.get_next_char()
+        while current + self._ch in self._symbol:
+            if self._ch == "":
+                break
+            current += self._ch
+            self.get_next_char()
+        return (self._symbol[current], current)
+
     def get_next_symbol(self):  # noqa: C901
-        # TODO (student): Implement the scanner.
-        pass
+        self.sym = None
+
+        while True:
+            self.skip_space()
+
+            if self._ch.isalpha():
+                # Identifier
+                self.sym = Token.IDENT
+                self.value = self._ch
+                self.get_next_char()
+                while self._ch.isalnum():
+                    self.value += self._ch
+                    self.get_next_char()
+                if (kw := self.value) in self._keyword:
+                    # Identifier is a keyword
+                    self.sym = self._keyword[kw]
+            elif self._ch.isdigit():
+                # Number
+                self.sym = Token.NUMBER
+                self.value = self._ch
+                self.get_next_char()
+                while self._ch.isdigit():
+                    self.value += self._ch
+                    self.get_next_char()
+            elif self._ch in self._symbol:
+                # Symbol
+                self.sym, self.value = self.token()
+                if self.sym == Token.LPAREN:
+                    if self._ch == "*":
+                        # Symbol is a comment start
+                        self.sym = None
+                        self.get_next_char()
+                        self.skip_comment()
+            elif self._ch == "":
+                # End of file
+                self.sym = Token.EOF
+                self.value = token_str["EOF"]
+
+            if self.sym is not None:
+                # Skipped comment, redo
+                logger.debug(f"Symbol '{self.sym}' with value '{self.value}'")
+                break
