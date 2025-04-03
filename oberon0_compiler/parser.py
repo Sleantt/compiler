@@ -80,8 +80,8 @@ class Parser(BaseModel):
         return value
 
     def ident(self) -> str:
-        logger.debug("Identifier")
         id: str = self.expect(Token.IDENT)
+        logger.debug(f"Identifier with value '{id}'")
         return id
 
     def ident_list(self) -> list[str]:
@@ -96,25 +96,14 @@ class Parser(BaseModel):
     def actual_parameters(self) -> list[Expression]:
         logger.debug("Function parameters")
         exprs: list[Expression] = []
-        expressions_left: bool = True
-        if self.current_symbol() != Token.LPAREN:
-            return exprs
         self.expect(Token.LPAREN)
-        try:
+        # The expression will always begin with either a + or - (SimpleExpression)
+        # or an ident (term -> factor -> ident)
+        if self.current_symbol() in [Token.PLUS, Token.MINUS, Token.IDENT]:
             exprs.append(self.expression())
-        except SyntaxError:
-            # No expression
-            expressions_left = False
-            self.has_error = False
-        while expressions_left:
-            try:
-                self.expect(Token.COMMA)
-            except SyntaxError:
-                # No more expressions
-                self.has_error = False
-                break
-            # After a comma an expression is required
-            exprs.append(self.expression())
+            while self.current_symbol() == Token.COMMA:
+                self.next_symbol()
+                exprs.append(self.expression())
 
         self.expect(Token.RPAREN)
         return exprs
@@ -170,7 +159,7 @@ class Parser(BaseModel):
         while self.current_symbol() in [Token.TIMES, Token.DIV, Token.MOD, Token.AND]:
             operator: str = self.current_value()
             self.next_symbol()
-            mulop_factors.append(tuple[str, Factor](operator, self.factor()))
+            mulop_factors.append((operator, self.factor()))
         return Term(factor=fact, mulop_factors=mulop_factors)
 
     def simple_expression(self) -> SimpleExpression:
@@ -190,11 +179,12 @@ class Parser(BaseModel):
         logger.debug("Expression")
         simple_expr: SimpleExpression = self.simple_expression()
         if self.current_symbol() in self._relational_operators:
+            operator = self.current_value()
+            self.next_symbol()
+            second_expression = self.simple_expression()
             return ComplexExpression(
                 simple_expression=simple_expr,
-                relation=tuple[str, SimpleExpression](
-                    self.current_value(), self.simple_expression()
-                ),
+                relation=(operator, second_expression),
             )
         return simple_expr
 
@@ -222,10 +212,9 @@ class Parser(BaseModel):
         expr = self.expression()
         self.expect(Token.THEN)
         stat_seq = self.statement_sequence()
-        elsif: list[tuple[Expression, StatementSequence]]
-        else_: StatementSequence
+        elsif: list[tuple[Expression, StatementSequence]] = []
+        else_: StatementSequence = None
         while self.current_symbol() == Token.ELSIF:
-            elsif = []
             self.expect(Token.ELSIF)
             elsif_expr = self.expression()
             self.expect(Token.THEN)
@@ -256,7 +245,7 @@ class Parser(BaseModel):
             body=stat_seq,
         )
 
-    def statement(self) -> Statement:
+    def statement(self) -> Statement:  # noqa: PLR0911
         logger.debug("Statement")
         if self.current_symbol() == Token.IDENT:
             logger.debug("Assignement or procedure call")
@@ -271,9 +260,12 @@ class Parser(BaseModel):
                 )
 
             # Procedure call
-            return ProcedureCall(
-                ident=id, selector=select, params=self.actual_parameters()
-            )
+            if self.current_symbol() == Token.LPAREN:
+                # With parameters
+                return ProcedureCall(
+                    ident=id, selector=select, params=self.actual_parameters()
+                )
+            return ProcedureCall(ident=id, selector=select, params=[])
         elif self.current_symbol() == Token.WHILE:
             return self.while_statement()
         elif self.current_symbol() == Token.IF:
@@ -307,8 +299,11 @@ class Parser(BaseModel):
         fp: list[FormalParameter] = []
         self.expect(Token.LPAREN)
 
-        while self.current_symbol() in [Token.VAR, Token.IDENT]:
+        if self.current_symbol() in [Token.VAR, Token.IDENT]:
             fp.append(self.formal_parameter())
+            while self.current_symbol() == Token.SEMICOLON:
+                self.next_symbol()
+                fp.append(self.formal_parameter())
         self.expect(Token.RPAREN)
         return fp
 
@@ -317,20 +312,21 @@ class Parser(BaseModel):
         const_decl: list[ConstantDeclaration] = []
         if self.current_symbol() == Token.CONST:
             self.next_symbol()
-            id: str = self.ident()
-            while True:
-                self.expect(Token.EQL)
-                expr: Expression = self.expression()
-                self.expect(Token.SEMICOLON)
-                const_decl.append(
-                    ConstantDeclaration(
-                        ident=id,
-                        expression=expr,
+            if self.current_symbol() == Token.IDENT:
+                id: str = self.ident()
+                while True:
+                    self.expect(Token.EQL)
+                    expr: Expression = self.expression()
+                    self.expect(Token.SEMICOLON)
+                    const_decl.append(
+                        ConstantDeclaration(
+                            ident=id,
+                            expression=expr,
+                        )
                     )
-                )
-                if self.current_symbol != Token.IDENT:
-                    break
-                id = self.ident()
+                    if self.current_symbol != Token.IDENT:
+                        break
+                    id = self.ident()
         return const_decl
 
     def type_declarations(self) -> list[TypeDeclaration]:
@@ -339,15 +335,16 @@ class Parser(BaseModel):
 
         if self.current_symbol() == Token.TYPE:
             self.next_symbol()
-            id: str = self.ident()
-            while True:
-                self.expect(Token.EQL)
-                t: Type = self.type()
-                self.expect(Token.SEMICOLON)
-                type_decl.append(TypeDeclaration(ident=id, type=t))
-                if self.current_symbol != Token.IDENT:
-                    break
-                id = self.ident()
+            if self.current_symbol() == Token.IDENT:
+                id: str = self.ident()
+                while True:
+                    self.expect(Token.EQL)
+                    t: Type = self.type()
+                    self.expect(Token.SEMICOLON)
+                    type_decl.append(TypeDeclaration(ident=id, type=t))
+                    if self.current_symbol != Token.IDENT:
+                        break
+                    id = self.ident()
 
         return type_decl
 
@@ -357,15 +354,16 @@ class Parser(BaseModel):
 
         if self.current_symbol() == Token.VAR:
             self.next_symbol()
-            id_list: list[str] = self.ident_list()
-            while True:
-                self.expect(Token.COLON)
-                t: Type = self.type()
-                self.expect(Token.SEMICOLON)
-                var_decl.append(VariableDeclaration(ident_list=id_list, type=t))
-                if self.current_symbol != Token.IDENT:
-                    break
+            if self.current_symbol() == Token.IDENT:
                 id_list: list[str] = self.ident_list()
+                while True:
+                    self.expect(Token.COLON)
+                    t: Type = self.type()
+                    self.expect(Token.SEMICOLON)
+                    var_decl.append(VariableDeclaration(ident_list=id_list, type=t))
+                    if self.current_symbol != Token.IDENT:
+                        break
+                    id_list: list[str] = self.ident_list()
         return var_decl
 
     def procedure_declarations(self) -> list[ProcedureDeclaration]:
