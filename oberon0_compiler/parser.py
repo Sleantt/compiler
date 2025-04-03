@@ -99,7 +99,14 @@ class Parser(BaseModel):
         self.expect(Token.LPAREN)
         # The expression will always begin with either a + or - (SimpleExpression)
         # or an ident (term -> factor -> ident)
-        if self.current_symbol() in [Token.PLUS, Token.MINUS, Token.IDENT]:
+        if self.current_symbol() in [
+            Token.PLUS,
+            Token.MINUS,
+            Token.IDENT,
+            Token.NUMBER,
+            Token.LPAREN,
+            Token.NOT,
+        ]:
             exprs.append(self.expression())
             while self.current_symbol() == Token.COMMA:
                 self.next_symbol()
@@ -165,8 +172,8 @@ class Parser(BaseModel):
     def simple_expression(self) -> SimpleExpression:
         logger.debug("Simple expression")
         sign: str | None = None
-        if self.current_symbol in [Token.PLUS, Token.MINUS]:
-            sign = self.current_value
+        if self.current_symbol() in [Token.PLUS, Token.MINUS]:
+            sign = self.current_value()
         t: Term = self.term()
         addop_terms: list[tuple[str, Term]] = []
         while self.current_symbol() in [Token.PLUS, Token.MINUS, Token.OR]:
@@ -189,14 +196,17 @@ class Parser(BaseModel):
         return simple_expr
 
     def type(self) -> Type:
-        logger.debug("Type")
         if self.current_symbol() == Token.IDENT:
-            return Type(ident=self.expect(Token.IDENT))
+            logger.debug("Simple type")
+            id = self.ident()
+            return Type(ident=id)
+        logger.debug("Array type")
         self.expect(Token.ARRAY)
         expr: Expression = self.expression()
         self.expect(Token.OF)
         t: Type = self.type()
-        return ArrayType(size=expr, type=t)
+        logger.debug(expr.__str__())
+        return ArrayType(ident="", size=expr, type=t)
 
     def repeat_statement(self) -> Repeat:
         logger.debug("Repeat")
@@ -324,7 +334,7 @@ class Parser(BaseModel):
                             expression=expr,
                         )
                     )
-                    if self.current_symbol != Token.IDENT:
+                    if self.current_symbol() != Token.IDENT:
                         break
                     id = self.ident()
         return const_decl
@@ -342,7 +352,7 @@ class Parser(BaseModel):
                     t: Type = self.type()
                     self.expect(Token.SEMICOLON)
                     type_decl.append(TypeDeclaration(ident=id, type=t))
-                    if self.current_symbol != Token.IDENT:
+                    if self.current_symbol() != Token.IDENT:
                         break
                     id = self.ident()
 
@@ -361,9 +371,10 @@ class Parser(BaseModel):
                     t: Type = self.type()
                     self.expect(Token.SEMICOLON)
                     var_decl.append(VariableDeclaration(ident_list=id_list, type=t))
-                    if self.current_symbol != Token.IDENT:
+                    if self.current_symbol() != Token.IDENT:
                         break
                     id_list: list[str] = self.ident_list()
+        logger.debug("End of variables declarations")
         return var_decl
 
     def procedure_declarations(self) -> list[ProcedureDeclaration]:
