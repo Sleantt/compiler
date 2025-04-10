@@ -26,3 +26,6 @@
 
 # Files to compile
 *.ebnf
+.ruff_cache
+
+grammar.md

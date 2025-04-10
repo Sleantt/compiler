@@ -34,6 +34,7 @@ ruff = "^0.9.7"
 pytest = "^8.3.4"
 
 [project.scripts]
+oberon0-compiler = "oberon0_compiler:app"
 oberon0-rt = "oberon0_runtime:app"
 ebnf-compiler = "ebnf_compiler:app"
 
