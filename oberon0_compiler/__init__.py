@@ -16,6 +16,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.pretty import Pretty
 
+from oberon0_compiler.code_gen import CodeGenerator
 from oberon0_compiler.parser import Parser
 from oberon0_compiler.scanner import Scanner
 
@@ -69,6 +70,11 @@ def main(
 
     if show_tree:
         console.print(Panel(Pretty(ast, indent_size=2), title="Syntax Tree"))
+    gen = CodeGenerator(ast_=ast)
+
+    destination = Path(source.name).stem + ".wasm"
+    with open(destination, "wb") as f:
+        gen.generate(f)
 
 
 if __name__ == "__main__":

@@ -446,6 +446,7 @@ class Parser(BaseModel):
         decl: Declarations = self.declarations()
         stat_seq: StatementSequence = StatementSequence(statements=[])
         if self.current_symbol() == Token.BEGIN:
+            logger.debug("Entering module body")
             self.next_symbol()
             stat_seq = self.statement_sequence()
         self.expect(Token.END)
@@ -464,5 +465,4 @@ class Parser(BaseModel):
     def parse(self) -> Node:
         self.scanner.get_next_symbol()
         tree = self.module()
-        print(tree)
         return tree

@@ -17,7 +17,8 @@ dependencies = [
     "pydantic (>=2.10.6,<3.0.0)",
     "typer (>=0.15.1,<0.16.0)",
     "loguru (>=0.7.3,<0.8.0)",
-    "rich (>=13.9.4,<14.0.0)"
+    "rich (>=13.9.4,<14.0.0)",
+    "wasm_gen @ git+https://github.com/heiafr-isc/wasm-gen-py.git"
 ]
 
 
