@@ -11,7 +11,7 @@ from typing import ClassVar
 import wasm_gen as W  # noqa
 from loguru import logger
 from pydantic import BaseModel
-from wasm_gen import Function
+from wasm_gen import BaseFunction, Function
 from wasm_gen import instructions as I  # noqa
 from wasm_gen.type import i32_t
 
@@ -67,7 +67,10 @@ class CodeGenerator(BaseModel):
             )
 
     def symbol_from_ident(self, ident: str, class_=None) -> Symbol:
-        sym = self._symbol_table.find(ident, class_=class_)
+        if class_ is None:
+            sym = self._symbol_table.find(ident)
+        else:
+            sym = self._symbol_table.find(ident, class_=class_)
         self.check(sym is not None, f"Unknown symbol: {ident}")
         return sym
 
@@ -195,19 +198,37 @@ class CodeGenerator(BaseModel):
         self.check(s.return_type == integer, "Return type must be INTEGER")
         self.system_call(f, s)
 
+    def simple_factor(self, f: SimpleFactor) -> sym_table.Type:
+        self.check(len(f.selector) == 0, "Selectors not supported for SimpleFactors")
+        sym = self.symbol_from_ident(f.ident, sym_table.Variable)
+        self.addr_of_sym(
+            sym,
+        )
+        self.current_function().body.append(I.I32Load())
+
     def factor(self, f: Factor) -> sym_table.Type:
         self.check(not isinstance(f, FunctionCall), "Function calls not supported")
         if isinstance(f, Number):
             self.current_function().body.append(I.I32Const(value=f.value))
+            return Number
+        elif isinstance(f, SimpleFactor):
+            return self.simple_factor(f)
+        self.check(False, f"Unsupported factor type '{type(f)}' for '{f}'")
 
     def term(self, t: Term) -> sym_table.Type:
-        self.check(len(t.mulop_factors) == 0, "Signs not supported")
+        self.check(len(t.mulop_factors) == 0, "Mulops not supported")
         return self.factor(t.factor)
 
     def simple_expression(self, expr: SimpleExpression) -> sym_table.Type:
-        self.check(expr.sign is None, "Signs not supported")
-        self.check(len(expr.addop_terms) == 0, "Signs not supported")
-        return self.term(expr.term)
+        negative = expr.sign == "-"
+        if negative:
+            self.current_function.body.append(I.I32Const(value=0))
+            self.current_function().body.append(I.I32Sub())
+        t: Term = self.term(expr.term)
+        for addop in expr.addop_terms:
+            _ = self.term(addop[1])
+            self.current_function().body.append(I.I32Add())
+        return t
 
     def complex_expression(self, expr: ComplexExpression) -> sym_table.Type:
         # TODO
@@ -218,7 +239,7 @@ class CodeGenerator(BaseModel):
             return self.simple_expression(expr)
         if isinstance(expr, ComplexExpression):
             return self.complex_expression(expr)
-        self.check(False, "Unsupported expression type")
+        self.check(False, f"Unsupported expression type '{type(expr)}'")
 
     def assignment(self, a: Assignment):
         sym = self.symbol_from_ident(
@@ -226,8 +247,10 @@ class CodeGenerator(BaseModel):
             class_=sym_table.Variable,
         )
 
-        if isinstance(sym, sym_table.Constant):
-            self.check(False, "Cannot assign a value to a constant")
+        self.check(
+            not isinstance(sym, sym_table.Constant),
+            "Cannot assign a value to a constant",
+        )
 
         # Get address of variable
         self.addr_of_sym(sym)
@@ -238,8 +261,18 @@ class CodeGenerator(BaseModel):
         self.current_function().body.append(I.I32Store())
 
     def system_call(self, p, s: SystemCall):
-        # TODO
-        pass
+        logger.debug("System call")
+        self.check(
+            len(p.params) == len(s.arguments),
+            f"Arguments length don't match for '{p}' and '{s}'",
+        )
+
+        for i, a in enumerate(p.params):
+            if s.arguments[i].by_ref:
+                self.addr_of_expr(a)
+            else:
+                self.expression(a)
+        self.current_function().body.append(I.Call(function=s.syscall))
 
     def while_loop(self, w: While):
         # TODO
@@ -259,12 +292,18 @@ class CodeGenerator(BaseModel):
                 pass
             elif isinstance(s, Assignment):
                 self.assignment(s)
+            elif isinstance(s, ProcedureCall):
+                self.procedure_call(s)
             else:
-                self.check(False, "Unsupported statement")
+                self.check(False, f"Unsupported statement {type(s)}")
 
     def procedure_call(self, p: ProcedureCall):
-        # TODO
-        pass
+        sym = self.symbol_from_ident(p.ident)
+
+        if isinstance(sym, SystemCall):
+            self.system_call(p, sym)
+        else:
+            self.check(False, f"Unsupported procedure call type '{type(p)}' for {p}")
 
     def procedure(self, p):
         if p.exported:
