@@ -27,3 +27,6 @@
 .ruff_cache
 
 grammar.md
+
+# Compiled files
+*.wasm
